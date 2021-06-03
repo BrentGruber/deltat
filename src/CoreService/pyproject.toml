@@ -8,6 +8,8 @@ authors = ["Brent Gruber <brent.gruber77@gmail.com>"]
 python = "^3.9"
 fastapi = "^0.65.1"
 uvicorn = "^0.14.0"
+opentelemetry-instrumentation-fastapi = "^0.22b0"
+opentelemetry-sdk = "^1.3.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
