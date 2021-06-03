@@ -1,0 +1,106 @@
+version: '3.7'
+
+services:
+  traefik:
+    image: "traefik:v2.4"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - deltat
+
+  loki:
+    image: grafana/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - deltat
+
+  promtail:
+    depends_on:
+      - loki
+    image: grafana/promtail
+    volumes:
+      - /var/log:/var/log
+    networks:
+      - deltat
+
+  cadvisor:
+    image: google/cadvisor:v0.33.0
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - deltat
+
+  prometheus:
+    image: prom/prometheus:v2.7.1
+    volumes:
+      - ./prometheus:/app.cfg
+    networks:
+      - deltat
+    command: >-
+        --config.file=/app.cfg/prometheus.yaml
+        --storage.tsdb.path=/prometheus
+        --web.console.libraries=/usr/share/prometheus/console_libraries
+        --web.console.templates=/usr/share/prometheus/consoles
+
+  tempo:
+    image: grafana/tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo-local.yaml:/etc/tempo.yaml
+    networks:
+      - deltat
+
+  grafana:
+    depends_on:
+      - loki
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: test
+      GF_PATHS_PROVISIONING: '/app.cfg/provisioning'
+    networks:
+      - deltat
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+
+  mongo:
+    image: mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    networks:
+      - deltat
+    
+  mongoexpress:
+    image: mongo-express
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+    networks:
+      - deltat
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.mongoexpress.loadbalancer.server.port=8081"
+      - "traefik.http.routers.mongoexpress.rule=Host(`mongoexpress.localhost`)"
+      - "traefik.http.routers.mongoexpress.entrypoints=web"
+
+networks:
+  deltat:
+    driver: bridge
