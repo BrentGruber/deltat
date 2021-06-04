@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     PORT: int = 8000
     LOGLEVEL: str = "warning"
 
+    OTEL_SERVICE_NAME: str = "deltat_core"
+    OTEL_HOST: str = "otel-collector"
+    OTEL_PORT: str = "4317"
+
     class Config:
         case_sensitive = True
 
