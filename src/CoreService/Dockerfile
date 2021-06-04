@@ -10,4 +10,4 @@ WORKDIR /app
 COPY . .
 
 RUN poetry config virtualenvs.create false
-CMD poetry install && poetry run aerich upgrade && poetry run python coreservice/main.py
+CMD poetry install && poetry run python coreservice/main.py

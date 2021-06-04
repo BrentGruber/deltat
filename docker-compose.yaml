@@ -28,8 +28,6 @@ services:
     depends_on:
       - loki
     image: grafana/promtail
-    volumes:
-      - /var/log:/var/log
     networks:
       - deltat
 
@@ -44,34 +42,52 @@ services:
     networks:
       - deltat
 
+  node-exporter:
+    image: prom/node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command: 
+      - '--path.procfs=/host/proc' 
+      - '--path.sysfs=/host/sys'
+      - --collector.filesystem.ignored-mount-points
+      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+    networks:
+      - deltat
+
+
   prometheus:
     image: prom/prometheus:v2.7.1
     volumes:
-      - ./prometheus:/app.cfg
+      - ./config/prometheus:/app.cfg
     networks:
       - deltat
     command: >-
-        --config.file=/app.cfg/prometheus.yaml
-        --storage.tsdb.path=/prometheus
-        --web.console.libraries=/usr/share/prometheus/console_libraries
-        --web.console.templates=/usr/share/prometheus/consoles
+      --config.file=/app.cfg/prometheus.yaml
+      --storage.tsdb.path=/prometheus
+      --web.console.libraries=/usr/share/prometheus/console_libraries
+      --web.console.templates=/usr/share/prometheus/consoles
 
   tempo:
     image: grafana/tempo
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
-      - ./tempo/tempo-local.yaml:/etc/tempo.yaml
+      - ./config/tempo/tempo-local.yaml:/etc/tempo.yaml
     networks:
       - deltat
 
   grafana:
     depends_on:
       - loki
+      - tempo
+      - prometheus
     image: grafana/grafana:latest
+    volumes:
+      - ./config/grafana/provisioning/:/etc/grafana/provisioning/
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: test
-      GF_PATHS_PROVISIONING: '/app.cfg/provisioning'
     networks:
       - deltat
     labels:
@@ -100,6 +116,22 @@ services:
       - "traefik.http.services.mongoexpress.loadbalancer.server.port=8081"
       - "traefik.http.routers.mongoexpress.rule=Host(`mongoexpress.localhost`)"
       - "traefik.http.routers.mongoexpress.entrypoints=web"
+
+  api:
+    build:
+      context: ./src/CoreService
+      dockerfile: Dockerfile
+    env_file:
+      - ./src/CoreService/.env
+    volumes:
+      - ./src/CoreService:/app
+    networks:
+      - deltat
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.gateway.loadbalancer.server.port=8000"
+      - "traefik.http.routers.gateway.rule=Host(`api.localhost`)"
+      - "traefik.http.routers.gateway.entrypoints=web"
 
 networks:
   deltat:
